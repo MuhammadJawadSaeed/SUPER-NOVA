@@ -57,8 +57,6 @@ async function registerUser(req, res) {
 async function loginUser(req, res) {
     try {
         const { username, email, password } = req.body;
-
-        // find user with password selected
         const user = await userModel.findOne({ $or: [ { email }, { username } ] }).select('+password');
 
         if (!user) {
@@ -100,8 +98,15 @@ async function loginUser(req, res) {
     }
 }
 
+async function getCurrentUser(req, res){
+  return res.status(201).json({
+    message: "Current user fetched successfully",
+    user : req.user
+  })
+}
 
 module.exports = {
   registerUser,
-  loginUser
+  loginUser,
+  getCurrentUser
 }
