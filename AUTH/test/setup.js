@@ -1,28 +1,26 @@
-const mongoose = require('mongoose');
-const { MongoMemoryServer } = require('mongodb-memory-server');
-
-let mongo;
+const mongoose = require("mongoose");
 
 beforeAll(async () => {
-    // Start in-memory MongoDB
-    mongo = await MongoMemoryServer.create();
-    const uri = mongo.getUri();
+  // Use local MongoDB for testing
+  // Make sure MongoDB is running on your machine
+  const testDbUri =
+    process.env.TEST_MONGO_URI || "mongodb://localhost:27017/auth_test_db";
+  process.env.MONGO_URI = testDbUri;
+  process.env.JWT_SECRET = process.env.JWT_SECRET || "test_jwt_secret";
 
-    process.env.MONGO_URI = uri; // ensure app's db connector uses this
-    process.env.JWT_SECRET = "test_jwt_secret"; // set a test JWT secret
-
-    await mongoose.connect(uri);
+  await mongoose.connect(testDbUri);
 });
 
 afterEach(async () => {
-    // Cleanup all collections between tests
-    const collections = await mongoose.connection.db.collections();
-    for (let collection of collections) {
-        await collection.deleteMany({});
-    }
+  // Cleanup all collections between tests
+  const collections = await mongoose.connection.db.collections();
+  for (let collection of collections) {
+    await collection.deleteMany({});
+  }
 });
 
 afterAll(async () => {
-    await mongoose.connection.close();
-    if (mongo) await mongo.stop();
+  // Drop test database and close connection
+  await mongoose.connection.dropDatabase();
+  await mongoose.connection.close();
 });

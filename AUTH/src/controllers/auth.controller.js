@@ -100,7 +100,7 @@ async function loginUser(req, res) {
 }
 
 async function getCurrentUser(req, res){
-  return res.status(201).json({
+  return res.status(200).json({
     message: "Current user fetched successfully",
     user : req.user
   })
@@ -118,9 +118,45 @@ async function logoutUser(req, res){
   return res.status(200).json({message : "Loged out successfully"});
 }
 
+async function getUserAddresses(req, res){
+  const id = req.user.id;
+  const user = await userModel.findById(id).select('addresses');
+  if (!user) {
+    return res.status(404).json({message:"User not fond"});
+  }
+  return res.status(200).json({
+    message:"User addresses found successfully",
+    addresses: user.addresses,
+  })
+}
+
+async function addUserAddress(req, res){
+  const id = req.user.id;
+  const user = await userModel.findOneAndUpdate({ _id: id }, {
+    $push:{
+      addresses: {
+        street,
+        city,
+        state,
+        pincode,
+        country,
+        isDefault
+      }
+    }
+  }, { new: true});
+  if(!user){
+    return res.status(404).json({message: 'User not found'})
+  }
+  return res.status(201).json({
+    message: "User found successfully",
+    address: user.addresses[ user.addresses.length-1]
+  });
+}
 module.exports = {
   registerUser,
   loginUser,
   getCurrentUser,
-  logoutUser
+  logoutUser,
+  getUserAddresses,
+  addUserAddress
 }
