@@ -19,4 +19,6 @@ router.get('/users/me/addresses', authMiddleware, authController.getUserAddresse
 
 router.post('/users/me/addresses', validators.addUserAddressValidations, authMiddleware, authController.addUserAddress)
 
+router.delete("/users/me/addresses/:addressId", authMiddleware, authController.deleteUserAddress)
+
 module.exports = router;
