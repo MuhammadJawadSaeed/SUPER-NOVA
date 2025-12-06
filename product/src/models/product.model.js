@@ -5,7 +5,7 @@ const productSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
-  discription: {
+  description: {
     type: String,
   },
   price: {
@@ -31,5 +31,7 @@ const productSchema = new mongoose.Schema({
     },
   ],
 });
+
+productSchema.index({title:'text', discription: 'text'});
 
 module.exports = mongoose.model("product", productSchema);
