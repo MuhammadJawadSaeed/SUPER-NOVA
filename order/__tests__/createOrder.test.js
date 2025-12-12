@@ -1,5 +1,5 @@
 const request = require("supertest");
-const app = require("../../src/app");
+const app = require("../src/app");
 const { getAuthCookie } = require("../test/auth");
 
 describe("POST /api/orders — Create order from current cart", () => {
@@ -36,13 +36,13 @@ describe("POST /api/orders — Create order from current cart", () => {
       expect(it.quantity).toBeGreaterThan(0);
       expect(it.price).toBeDefined();
       expect(typeof it.price.amount).toBe("number");
-      expect(["USD", "INR"]).toContain(it.price.currency);
+      expect(["USD", "PkR"]).toContain(it.price.currency);
     }
 
     // Totals include taxes + shipping
     expect(order.totalPrice).toBeDefined();
     expect(typeof order.totalPrice.amount).toBe("number");
-    expect(["USD", "INR"]).toContain(order.totalPrice.currency);
+    expect(["USD", "PKR"]).toContain(order.totalPrice.currency);
 
     // Shipping address persisted
     expect(order.shippingAddress).toMatchObject({
