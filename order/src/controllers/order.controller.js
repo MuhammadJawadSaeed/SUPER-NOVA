@@ -17,6 +17,12 @@ async function createOrder(req, res) {
       }
     );
 
+    if (!cartResponse.data.cart.items || cartResponse.data.cart.items.length === 0 ) {
+      return res.status(400).json({
+        message: " Cart is empty"
+      })
+    }
+
     const products = await Promise.all(
       cartResponse.data.cart.items.map(async (item) => {
         return (

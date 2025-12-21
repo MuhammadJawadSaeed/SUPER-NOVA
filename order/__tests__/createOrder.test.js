@@ -1,6 +1,10 @@
 const request = require("supertest");
 const app = require("../src/app");
 const { getAuthCookie } = require("../test/auth");
+const axios = require("axios");
+const mongoose = require("mongoose");
+
+jest.mock("axios");
 
 describe("POST /api/orders — Create order from current cart", () => {
   const sampleAddress = {
@@ -10,6 +14,63 @@ describe("POST /api/orders — Create order from current cart", () => {
     pincode: "90210",
     country: "USA",
   };
+
+  beforeEach(() => {
+    // Generate valid MongoDB ObjectIds
+    const productId1 = new mongoose.Types.ObjectId().toString();
+    const productId2 = new mongoose.Types.ObjectId().toString();
+
+    // Mock cart service response
+    const mockCartResponse = {
+      data: {
+        cart: {
+          items: [
+            { productId: productId1, quantity: 2 },
+            { productId: productId2, quantity: 1 },
+          ],
+        },
+      },
+    };
+
+    // Mock product service responses
+    const mockProduct1 = {
+      data: {
+        data: {
+          _id: productId1,
+          title: "Test Product 1",
+          price: { amount: 100, currency: "PKR" },
+          stock: 10,
+        },
+      },
+    };
+
+    const mockProduct2 = {
+      data: {
+        data: {
+          _id: productId2,
+          title: "Test Product 2",
+          price: { amount: 200, currency: "PKR" },
+          stock: 5,
+        },
+      },
+    };
+
+    // Setup axios mock to return different responses based on URL
+    axios.get.mockImplementation((url) => {
+      if (url.includes("/api/cart")) {
+        return Promise.resolve(mockCartResponse);
+      } else if (url.includes(`/api/products/${productId1}`)) {
+        return Promise.resolve(mockProduct1);
+      } else if (url.includes(`/api/products/${productId2}`)) {
+        return Promise.resolve(mockProduct2);
+      }
+      return Promise.reject(new Error("Unknown URL"));
+    });
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
 
   it("creates order from current cart, computes totals, sets status=PENDING, reserves inventory", async () => {
     // Example: Provide any inputs the API expects (headers/cookies/body). Adjust when auth is wired.
@@ -36,7 +97,7 @@ describe("POST /api/orders — Create order from current cart", () => {
       expect(it.quantity).toBeGreaterThan(0);
       expect(it.price).toBeDefined();
       expect(typeof it.price.amount).toBe("number");
-      expect(["USD", "PkR"]).toContain(it.price.currency);
+      expect(["USD", "PKR"]).toContain(it.price.currency);
     }
 
     // Totals include taxes + shipping

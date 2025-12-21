@@ -7,4 +7,5 @@ module.exports = {
   setupFilesAfterEnv: ["<rootDir>/test/setup.js"],
   collectCoverageFrom: ["src/**/*.js", "!src/**/index.js"],
   verbose: true,
+  maxWorkers: 1, // Run tests serially to avoid database race conditions
 };
