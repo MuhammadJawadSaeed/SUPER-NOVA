@@ -7,7 +7,7 @@ const searchProduct = tool(
     console.log("searchProduct called with data:", { query, token });
 
     const response = await axios.get(
-      `http://nova-alb-551701734.ap-northeast-3.elb.amazonaws.com/api/products?q=${query}`,
+      `http://localhost:3001/api/products?q=${query}`,
       {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -29,7 +29,7 @@ const searchProduct = tool(
 const addProductToCart = tool(
   async ({ productId, qty = 1, token }) => {
     const response = await axios.post(
-      `http://nova-alb-551701734.ap-northeast-3.elb.amazonaws.com/api/cart/items`,
+      `http://localhost:3002/api/cart/items`,
       {
         productId,
         qty,
