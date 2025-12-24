@@ -16,9 +16,27 @@ const paymentSchema = new mongoose.Schema(
     signature: {
       type: String,
     },
+    paymentMethod: {
+      type: String,
+      enum: ["JAZZCASH", "CARD", "COD"],
+      default: "JAZZCASH",
+    },
+    transactionId: {
+      type: String,
+    },
+    responseCode: {
+      type: String,
+    },
+    responseMessage: {
+      type: String,
+    },
+    amount: {
+      type: Number,
+      required: true,
+    },
     status: {
       type: String,
-      enum: ["PENDIGN", "COMPLETE", "FAILED"],
+      enum: ["PENDING", "COMPLETE", "FAILED"],
       default: "PENDING",
     },
     user: {
