@@ -1,5 +1,6 @@
 const { StateGraph, MessagesAnnotation } = require("@langchain/langgraph");
 const { ChatGoogleGenerativeAI } = require("@langchain/google-genai");
+require("dotenv").config();
 const {
   ToolMessage,
   AIMessage,
@@ -8,12 +9,13 @@ const {
 const tools = require("./tools");
 
 const model = new ChatGoogleGenerativeAI({
-  model: "gemini-2.0-flash",
+   model: "gemini-2.5-flash",
   temperature: 0.5,
+  apiKey: process.env.GOOGLE_API_KEY,
 });
 
 const graph = new StateGraph(MessagesAnnotation)
-  .addNode("tools", async (state, config) => {
+  .addNode("tools", async (state, config) => {    
     const lastMessage = state.messages[state.messages.length - 1];
 
     const toolsCall = lastMessage.tool_calls;
