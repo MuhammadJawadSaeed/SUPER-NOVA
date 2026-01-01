@@ -1,137 +1,99 @@
-const crypto = require("crypto-js");
+const crypto = require("crypto");
 
-class JazzCashService {
-  constructor() {
-    this.merchantId = process.env.JAZZCASH_MERCHANT_ID;
-    this.password = process.env.JAZZCASH_PASSWORD;
-    this.integritysalt = process.env.JAZZCASH_INTEGRITY_SALT;
-    this.returnUrl =
-      process.env.JAZZCASH_RETURN_URL ||
-      "http://localhost:3004/api/payments/jazzcash/callback";
-    this.transactionUrl =
-      process.env.JAZZCASH_TRANSACTION_URL ||
-      "https://sandbox.jazzcash.com.pk/CustomerPortal/transactionmanagement/merchantform/";
-  }
+const MERCHANT_ID = process.env.JAZZCASH_MERCHANT_ID;
+const PASSWORD = process.env.JAZZCASH_PASSWORD;
+const INTEGRITY_SALT = process.env.JAZZCASH_INTEGRITY_SALT;
+const RETURN_URL = process.env.JAZZCASH_RETURN_URL;
+const API_URL = process.env.JAZZCASH_API_URL;
 
-  /**
-   * Generate sorted string for hash calculation
-   */
-  sortAndJoinParams(params) {
-    const sortedKeys = Object.keys(params).sort();
-    let sortedString = "";
-    sortedKeys.forEach((key) => {
-      if (params[key]) {
-        sortedString += "&" + params[key];
-      }
-    });
-    return sortedString.substring(1);
-  }
+function generateTransactionId() {
+  return "T" + Date.now();
+}
 
-  /**
-   * Generate secure hash for JazzCash transaction
-   */
-  generateHash(params) {
-    const sortedString = this.sortAndJoinParams(params);
-    const hashString = this.integritySort + "&" + sortedString;
-    const hash = crypto.HmacSHA256(hashString, this.integritySalt);
-    return hash.toString(crypto.enc.Hex);
-  }
+function generateHash(data) {
+  const sortedKeys = Object.keys(data).sort();
+  let hashString = INTEGRITY_SALT + "&";
 
-  /**
-   * Create payment request parameters
-   */
-  createPaymentRequest(orderId, amount, customerEmail, customerMobile) {
-    const timestamp = new Date().getTime().toString().substring(0, 10);
-    const transactionId = `T${timestamp}${orderId}`;
-    const expiryDateTime = this.getExpiryDateTime();
-
-    const params = {
-      pp_Version: "1.1",
-      pp_TxnType: "MWALLET",
-      pp_Language: "EN",
-      pp_MerchantID: this.merchantId,
-      pp_SubMerchantID: "",
-      pp_Password: this.password,
-      pp_BankID: "",
-      pp_ProductID: "",
-      pp_TxnRefNo: transactionId,
-      pp_Amount: (amount * 100).toString(), // Amount in paisa (1 PKR = 100 paisa)
-      pp_TxnCurrency: "PKR",
-      pp_TxnDateTime: this.getCurrentDateTime(),
-      pp_BillReference: orderId,
-      pp_Description: `Payment for Order ${orderId}`,
-      pp_TxnExpiryDateTime: expiryDateTime,
-      pp_ReturnURL: this.returnUrl,
-      pp_SecureHash: "",
-      ppmpf_1: customerEmail || "",
-      ppmpf_2: customerMobile || "",
-      ppmpf_3: "",
-      ppmpf_4: "",
-      ppmpf_5: "",
-    };
-
-    // Generate secure hash
-    params.pp_SecureHash = this.generateHash(params);
-
-    return {
-      params,
-      transactionId,
-      transactionUrl: this.transactionUrl,
-    };
-  }
-
-  /**
-   * Verify callback hash
-   */
-  verifyCallback(callbackParams) {
-    const receivedHash = callbackParams.pp_SecureHash;
-    delete callbackParams.pp_SecureHash;
-
-    const calculatedHash = this.generateHash(callbackParams);
-
-    return receivedHash === calculatedHash;
-  }
-
-  /**
-   * Get current date time in JazzCash format (YYYYMMDDHHmmss)
-   */
-  getCurrentDateTime() {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, "0");
-    const day = String(now.getDate()).padStart(2, "0");
-    const hours = String(now.getHours()).padStart(2, "0");
-    const minutes = String(now.getMinutes()).padStart(2, "0");
-    const seconds = String(now.getSeconds()).padStart(2, "0");
-    return `${year}${month}${day}${hours}${minutes}${seconds}`;
-  }
-
-  /**
-   * Get expiry date time (1 hour from now)
-   */
-  getExpiryDateTime() {
-    const expiryTime = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
-    const year = expiryTime.getFullYear();
-    const month = String(expiryTime.getMonth() + 1).padStart(2, "0");
-    const day = String(expiryTime.getDate()).padStart(2, "0");
-    const hours = String(expiryTime.getHours()).padStart(2, "0");
-    const minutes = String(expiryTime.getMinutes()).padStart(2, "0");
-    const seconds = String(expiryTime.getSeconds()).padStart(2, "0");
-    return `${year}${month}${day}${hours}${minutes}${seconds}`;
-  }
-
-  /**
-   * Parse payment status from response code
-   */
-  parsePaymentStatus(responseCode) {
-    if (responseCode === "000") {
-      return "COMPLETE";
-    } else if (responseCode === "124") {
-      return "PENDING";
-    } else {
-      return "FAILED";
+  sortedKeys.forEach((key) => {
+    if (data[key] !== "" && data[key] !== undefined) {
+      hashString += data[key] + "&";
     }
+  });
+
+  hashString = hashString.slice(0, -1);
+  return crypto
+    .createHmac("sha256", INTEGRITY_SALT)
+    .update(hashString)
+    .digest("hex");
+}
+
+function createPaymentRequest(orderId, amount, email, phone) {
+  const transactionId = generateTransactionId();
+  const expiryDate = new Date();
+  expiryDate.setHours(expiryDate.getHours() + 1);
+
+  const formattedDate = expiryDate
+    .toISOString()
+    .replace(/[-:]/g, "")
+    .replace(/\.\d{3}Z/, "");
+
+  const params = {
+    pp_Version: "1.1",
+    pp_TxnType: "MWALLET",
+    pp_Language: "EN",
+    pp_MerchantID: MERCHANT_ID,
+    pp_SubMerchantID: "",
+    pp_Password: PASSWORD,
+    pp_TxnRefNo: transactionId,
+    pp_Amount: Math.round(amount * 100).toString(), // Convert to paisa
+    pp_TxnCurrency: "PKR",
+    pp_TxnDateTime: formattedDate,
+    pp_BillReference: orderId,
+    pp_Description: `Payment for order ${orderId}`,
+    pp_TxnExpiryDateTime: formattedDate,
+    pp_ReturnURL: RETURN_URL,
+    pp_SecureHash: "",
+    ppmpf_1: email || "",
+    ppmpf_2: phone || "",
+    ppmpf_3: "",
+    ppmpf_4: "",
+    ppmpf_5: "",
+  };
+
+  params.pp_SecureHash = generateHash(params);
+
+  return {
+    params,
+    transactionId,
+    transactionUrl: API_URL,
+  };
+}
+
+function verifyCallback(callbackData) {
+  const receivedHash = callbackData.pp_SecureHash;
+  const dataToHash = { ...callbackData };
+  delete dataToHash.pp_SecureHash;
+
+  const calculatedHash = generateHash(dataToHash);
+  return receivedHash === calculatedHash;
+}
+
+function parsePaymentStatus(responseCode) {
+  const successCodes = ["000", "121", "200"];
+  const pendingCodes = ["124", "125"];
+
+  if (successCodes.includes(responseCode)) {
+    return "COMPLETE";
+  } else if (pendingCodes.includes(responseCode)) {
+    return "PENDING";
+  } else {
+    return "FAILED";
   }
 }
 
-module.exports = new JazzCashService();
+module.exports = {
+  createPaymentRequest,
+  verifyCallback,
+  parsePaymentStatus,
+  generateTransactionId,
+};

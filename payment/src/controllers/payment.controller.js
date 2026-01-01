@@ -1,5 +1,5 @@
-const axios = require("axios");
 const paymentModel = require("../models/payment.model");
+const axios = require("axios");
 const jazzCashService = require("../services/jazzcash.service");
 const { publishToQueue } = require("../broker/broker");
 
@@ -9,6 +9,7 @@ async function createPayment(req, res) {
   if (!token) {
     return res.status(401).json({ message: "Unauthorized: No token provided" });
   }
+
   try {
     const orderId = req.params.orderId;
     const { paymentMethod = "JAZZCASH" } = req.body;
@@ -34,19 +35,20 @@ async function createPayment(req, res) {
       order: order._id,
       orderId: orderId,
       user: req.user.id,
-      amount: order.total,
+      amount: order.totalPrice.amount,
       paymentMethod: paymentMethod,
       status: "PENDING",
     });
 
     await payment.save();
+    await publishToQueue("PAYMENT_SELLER_DASHBOARD.PAYMENT_CREATED", payment);
 
-    // Handle JazzCash payment
+    // Handle Jazzcash payment
     if (paymentMethod === "JAZZCASH") {
       const { params, transactionId, transactionUrl } =
         jazzCashService.createPaymentRequest(
           orderId,
-          order.total,
+          order.totalPrice.amount,
           req.user.email,
           req.user.phone
         );
@@ -54,6 +56,17 @@ async function createPayment(req, res) {
       // Update payment with transaction ID
       payment.transactionId = transactionId;
       await payment.save();
+
+      await publishToQueue("PAYMENT_NOTIFICATION.PAYMENT_INITIATED", {
+        email: req.user.email,
+        orderId: orderId,
+        amount: order.totalPrice.amount,
+        currency: order.totalPrice.currency,
+        customerName:
+          req.user.fullName?.firstName +
+          " " +
+          (req.user.fullName?.lastName || ""),
+      });
 
       return res.status(200).json({
         message: "Payment initiated",
@@ -104,42 +117,51 @@ async function handleJazzCashCallback(req, res) {
     payment.paymentId = callbackData.pp_TxnRefNo;
 
     await payment.save();
+    await publishToQueue("PAYMENT_SELLER_DASHBOARD.PAYMENT_UPDATE", payment);
 
-    // If payment successful, update order status
+    // If payment successful, update order status and send notification
     if (payment.status === "COMPLETE") {
-      const token =
-        req.cookies?.token || req.headers?.authorization?.split(" ")[1];
+      await publishToQueue("PAYMENT_NOTIFICATION.PAYMENT_COMPLETED", {
+        email: "customer@example.com", // You'll need to fetch user email
+        orderId: payment.orderId,
+        paymentId: payment.paymentId,
+        amount: payment.amount,
+        currency: "PKR",
+        customerName: "Customer",
+      });
 
-      if (token) {
-        try {
-          await axios.patch(
-            `http://localhost:3003/api/orders/${payment.orderId}/status`,
-            { status: "CONFIRMED" },
-            {
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
-            }
-          );
-        } catch (err) {
-          console.error("Failed to update order status:", err.message);
-        }
+      try {
+        await axios.patch(
+          `http://localhost:3003/api/orders/${payment.orderId}/status`,
+          { status: "CONFIRMED" }
+        );
+      } catch (err) {
+        console.error("Failed to update order status:", err.message);
       }
 
       // Redirect to success page
       return res.redirect(
         `${
-          process.env.FRONTEND_URL || "http://localhost:3000"
+          process.env.CLIENT_URL || "http://localhost:3000"
         }/payment/success?orderId=${payment.orderId}`
       );
-    } else {
+    } else if (payment.status === "FAILED") {
+      await publishToQueue("PAYMENT_NOTIFICATION.PAYMENT_FAILED", {
+        email: "customer@example.com",
+        orderId: payment.orderId,
+        paymentId: payment.paymentId,
+        customerName: "Customer",
+      });
+
       // Redirect to failure page
       return res.redirect(
         `${
-          process.env.FRONTEND_URL || "http://localhost:3000"
+          process.env.CLIENT_URL || "http://localhost:3000"
         }/payment/failed?orderId=${payment.orderId}`
       );
     }
+
+    return res.status(200).json({ message: "Payment status updated", payment });
   } catch (err) {
     console.log(err);
     return res
@@ -177,4 +199,22 @@ async function getPaymentStatus(req, res) {
   }
 }
 
-module.exports = { createPayment, handleJazzCashCallback, getPaymentStatus };
+// Listener-style payment creation and update for event-driven architecture
+async function createPaymentFromEvent(payment) {
+  return paymentModel.create(payment);
+}
+
+async function updatePaymentFromEvent(payment) {
+  return paymentModel.findOneAndUpdate(
+    { orderId: payment.orderId },
+    { ...payment }
+  );
+}
+
+module.exports = {
+  createPayment,
+  handleJazzCashCallback,
+  getPaymentStatus,
+  createPaymentFromEvent,
+  updatePaymentFromEvent,
+};

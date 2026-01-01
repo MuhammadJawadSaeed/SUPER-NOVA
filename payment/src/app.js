@@ -1,17 +1,21 @@
-const cookieParser = require("cookie-parser");
+// Inside src/app.js
+
 const express = require("express");
-const paymentRoutes = require("./routes/payment.routes");
+const cookieParser = require("cookie-parser");
 
 const app = express();
+
+// Import the payment routes
+const paymentRoutes = require("./routes/payment.routes");
+
 app.use(express.json());
 app.use(cookieParser());
 
-app.get("/", (req, res) => {
-  res.status(200).json({
-    message: "Payment service is running",
-  });
-});
+// Tell the app to use the payment routes for any URL starting with /api/payment
+app.use("/api/payment", paymentRoutes);
 
-app.use("/api/payments", paymentRoutes);
+app.get("/", (req, res) => {
+  res.status(200).json({ message: "Payment Service is running." });
+});
 
 module.exports = app;

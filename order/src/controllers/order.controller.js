@@ -1,6 +1,7 @@
 const { promises } = require("supertest/lib/test");
 const orderModel = require("../models/order.model");
 const axios = require("axios");
+const { publishToQueue } = require("../broker/broker");
 
 async function createOrder(req, res) {
   const user = req.user;
@@ -8,19 +9,19 @@ async function createOrder(req, res) {
 
   try {
     // fetch user cart from cart service
-    const cartResponse = await axios.get(
-      `http://localhost:3002/api/cart`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
-    );
+    const cartResponse = await axios.get(`http://localhost:3002/api/cart`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
 
-    if (!cartResponse.data.cart.items || cartResponse.data.cart.items.length === 0 ) {
+    if (
+      !cartResponse.data.cart.items ||
+      cartResponse.data.cart.items.length === 0
+    ) {
       return res.status(400).json({
-        message: " Cart is empty"
-      })
+        message: " Cart is empty",
+      });
     }
 
     const products = await Promise.all(
@@ -80,6 +81,8 @@ async function createOrder(req, res) {
         country: req.body.shippingAddress.country,
       },
     });
+
+    await publishToQueue("ORDER_SELLER_DASHBOARD.ORDER_CREATED", order);
 
     res.status(201).json({ order });
   } catch (err) {
