@@ -18,8 +18,8 @@ const paymentSchema = new mongoose.Schema(
     },
     paymentMethod: {
       type: String,
-      enum: ["STRIPE", "CARD", "COD"],
-      default: "STRIPE",
+      enum: ["JAZZCASH", "CARD", "COD"],
+      default: "JAZZCASH",
     },
     transactionId: {
       type: String,
